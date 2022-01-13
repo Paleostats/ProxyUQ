@@ -15,41 +15,56 @@ from pandas import read_csv
 from pyplotfuncmc import PlotSolnsMC
 
 
-
-def ProxyUQ( core, p_list=[], y_by=10):
-    """Produce a posterio MC sample of a proxy, from the MC output of
-       an age-depth model, e.g. Bacon.
-       core - Core prefix, e.g. "AtmosphericRivers/LL14", from this the
-       file "AtmosphericRivers/LL14_settings.txt" and "AtmosphericRivers/LL14_proxies.csv" 
-       will be read and deduce the .out file to "AtmosphericRivers/LL14_60.out"
-       
-       p_list - of empty, attempt to read the fikes and provied basic info.
-              -otherwise, give the list of proxies to analyse, e.g. p_list=[1,5] 
-
-       y_by - step for the age grid.
-       
+def ProxyUQ(core, p_list=None, y_by=10, folder="Cores"):
+    """Produce a posterior MC sample of a proxy, from the MC output of either Plum or Bacon
+       where the output is a properly formatted `.out` file.
+       folder -- Folder for all core output files.  Defaults to "Cores".
+       core -- Core handle, e.g. "LL14", associated with the set of `_settings.txt`,
+       `_proxy.txt`, and `.out` files of interest.  These files should be located within
+       the folder identified using the parameter `folder`.
+       p_list -- An array of integers identifying the columns within the `core_proxy.txt` file
+       to be used to produce the posterior estimates.  If `p_list is None` (default) then 
+       the function return the column headings in the `_proxy.txt` file.
+       y_by -- The date interval along which estimates will be interpolated, in years.
        returns a list with the age grid and the MC sample for each proxy analyzed
-       
-    """ 
+    """
     
     ### Read the first three lines of settings
-    d_min, d_max, d_by = loadtxt("%s_settings.txt" % (core), max_rows=3)
+    # Check that the file exists:
+    try:
+        d_min, d_max, d_by = loadtxt("%s/%s_settings.txt" % (folder, core), max_rows=3)
+    except OSError as ex:
+        print("The file %s/%s_settings.txt does not exist in this location." % (folder, core))
+        return None
+    
     K1 = int(floor((d_max-d_min)/d_by))+1
-    out = loadtxt( "%s_%d.out" % (core,K1), delimiter=' ')
+    
+    try:
+        out = loadtxt( "%s/%s_%d.out" % (folder, core, K1), delimiter=' ')
+    except OSError as ex:
+        print("The file %s/%s_%d.out does not exist in this location." % (folder, core, K1))
+        return None
+    
     T, tmp = out.shape
-    K = tmp-3
+    K = tmp - 3
     
     ### Read the proxie file and, for the moment, change missing values to 0
-    proxy = read_csv("%s_proxies.csv" % (core))
+    try:
+        proxy = read_csv("%s/%s_proxies.csv" % (folder, core))
+    except OSError as ex:
+        print("The file %s/%s_proxies.csv does not exist, do you have a proxy file?" % (folder, core))
+        return None
+    
     proxy = proxy.fillna(0)
     proxy_names = list(proxy.columns)
     proxy=array(proxy)
-    if p_list == []:
+    
+    if p_list is None:
         print("\n%s_%d.out" % (core,K1))
         print("d_min=%f, d_max=%f, d_by=%f, K=%d, T=%d" % (d_min,d_max,d_by,K,T))
         print("Proxies: ", proxy_names, "\n")
-        return
-
+        return None
+    
     k_proxy = len(p_list)
     ### age grid for age-depth models
     depths = arange( d_min, d_max+d_by, step=d_by)
@@ -63,6 +78,7 @@ def ProxyUQ( core, p_list=[], y_by=10):
     
     ### age grid for the proxies
     CalA = arange( ceil(solns.min()), floor(solns.max()), step=y_by)
+    
     ### Array to hold the proxy MC samples
     ### Sample size, T rows, and CalA.size number of ages.
     solns_p = zeros((T,CalA.size))
@@ -72,15 +88,14 @@ def ProxyUQ( core, p_list=[], y_by=10):
     PlotSolnsMC( depths, solns, ax=ax[0]) #Default quantiles 0.1,0.25,0.5,0.75,0.9
     ax[-1].set_xlabel("Depth (cm)")
     ax[0].set_ylabel("Age (y BP)")
-    
     fig_p, ax_p = subplots( nrows=k_proxy, ncols=1, sharex=True, squeeze=False)
     ax_p[-1,0].set_xlabel("Age (y BP)")
-    
     rt = [CalA]
+    
     ### Iterate through the proxy list
     for ax_n,p in enumerate(p_list):
         ### Interpolate the proxy
-        inter_p = interp1d( proxy[:,0], proxy[:,p]) 
+        inter_p = interp1d( proxy[:,0], proxy[:,p])
         print("\nProxy (%s)" % (proxy_names[p]))
         ### Itearete through the calendar ages
         for i,g in enumerate(CalA):
@@ -99,10 +114,8 @@ def ProxyUQ( core, p_list=[], y_by=10):
                     solns_p[t,i] = inter_p(d) #add error here for proxies with error!
                 else:
                     solns_p[t,i] = None
-    
         ax[ax_n+1].plot( proxy[:,0], proxy[:,p], '-')
         ax[ax_n+1].set_ylabel("Proxy (%s)" % (proxy_names[p]))
-        
         ### Plot the proxy ate cal age with quentiles
         PlotSolnsMC( CalA, solns_p, ax=ax_p[ax_n,0])
         ax_p[ax_n,0].set_ylabel("Proxy (%s)" % (proxy_names[p]))
@@ -114,11 +127,9 @@ def ProxyUQ( core, p_list=[], y_by=10):
 
 
 if __name__ == "__main__":
-    
-    ### Read the files and provide general info 
-    ProxyUQ( "HP1C/HP1C", p_list=[])
-    ProxyUQ( "Auassat/Auassat", p_list=[])
-    ProxyUQ( "AtmosphericRivers/LL14", p_list=[])
+       ### Read the files and provide general info    aa=ProxyUQ( "HP1C/HP1C", p_list=[1], y_by=1)
+#    ProxyUQ( "Auassat/Auassat", p_list=[])
+    ProxyUQ( core = "LL14", folder = "AtmosphericRivers", p_list=[1])
 
     """
     ### Example:
@@ -132,6 +143,3 @@ if __name__ == "__main__":
     ax.set_xlabel("Acc. Carbon")
     ax.set_title("%.0f, y BP" % (CalA[25]))
     """
-    
-    
-
