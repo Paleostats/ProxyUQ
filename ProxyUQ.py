@@ -6,16 +6,22 @@ Created on Tue Jan 11 09:41:10 2022
 @author: jac
 """
 
-from numpy import loadtxt, arange, zeros, cumsum, where, ceil, floor, array
+from numpy import loadtxt, arange, zeros, cumsum, where, ceil, floor, array, ndarray
 from scipy.interpolate import interp1d
 
 from matplotlib.pylab import plot, subplots, hist
 from pandas import read_csv
+import json
 
 from pyplotfuncmc import PlotSolnsMC
 
+class NumpyEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, ndarray):
+                return obj.tolist()
+            return json.JSONEncoder.default(self, obj)
 
-def ProxyUQ(core, p_list=None, y_by=10, folder="Cores"):
+def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
     """Produce a posterior MC sample of a proxy, from the MC output of either Plum or Bacon
        where the output is a properly formatted `.out` file.
        folder -- Folder for all core output files.  Defaults to "Cores".
@@ -26,7 +32,8 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores"):
        to be used to produce the posterior estimates.  If `p_list is None` (default) then 
        the function return the column headings in the `_proxy.txt` file.
        y_by -- The date interval along which estimates will be interpolated, in years.
-       returns a list with the age grid and the MC sample for each proxy analyzed
+       returns a `dict` object with three elements: `grid`, the age grid,
+                 and an MC sample for each proxy analyzed in `proxy`.
     """
     
     ### Read the first three lines of settings
@@ -57,7 +64,7 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores"):
     
     proxy = proxy.fillna(0)
     proxy_names = list(proxy.columns)
-    proxy=array(proxy)
+    proxy = array(proxy)
     
     if p_list is None:
         print("\n%s_%d.out" % (core,K1))
@@ -90,7 +97,8 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores"):
     ax[0].set_ylabel("Age (y BP)")
     fig_p, ax_p = subplots( nrows=k_proxy, ncols=1, sharex=True, squeeze=False)
     ax_p[-1,0].set_xlabel("Age (y BP)")
-    rt = [CalA]
+    rt = {'dates': CalA}
+    proxyResult = []
     
     ### Iterate through the proxy list
     for ax_n,p in enumerate(p_list):
@@ -114,12 +122,26 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores"):
                     solns_p[t,i] = inter_p(d) #add error here for proxies with error!
                 else:
                     solns_p[t,i] = None
+        print('\n')
         ax[ax_n+1].plot( proxy[:,0], proxy[:,p], '-')
         ax[ax_n+1].set_ylabel("Proxy (%s)" % (proxy_names[p]))
         ### Plot the proxy ate cal age with quentiles
         PlotSolnsMC( CalA, solns_p, ax=ax_p[ax_n,0])
         ax_p[ax_n,0].set_ylabel("Proxy (%s)" % (proxy_names[p]))
-        rt += [solns_p.copy()]
+        proxyResult += [solns_p.copy()]
+    
+    rt['proxy'] = {}
+
+    for j in range(len(p_list)):
+        rt['proxy'][proxy_names[p_list[j]]] = proxyResult[j]
+    
+    if saveFile is not None:
+        try:
+            with open(saveFile, 'w') as outfile:
+                json.dump(rt, outfile, cls = NumpyEncoder)
+        except Exception as ex:
+            print(ex)
+            return None
     
     fig.tight_layout()
     fig_p.tight_layout()
@@ -129,8 +151,9 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores"):
 if __name__ == "__main__":
        ### Read the files and provide general info    aa=ProxyUQ( "HP1C/HP1C", p_list=[1], y_by=1)
 #    ProxyUQ( "Auassat/Auassat", p_list=[])
-    ProxyUQ( core = "LL14", folder = "AtmosphericRivers", p_list=[1])
-
+    
+    aa = ProxyUQ( core = "LL14", folder = "AtmosphericRivers", p_list=[1], saveFile="myjson.json")
+    
     """
     ### Example:
     ### Analyze proxies 2 and 3.  Note, start at 1, 0 is the depth column.
