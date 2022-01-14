@@ -21,11 +21,11 @@ class NumpyEncoder(json.JSONEncoder):
                 return obj.tolist()
             return json.JSONEncoder.default(self, obj)
 
-def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
+def ProxyUQ(core, folder="Cores", p_list=None, y_by=10, saveFile = None, showPlot = False, savePlot = None):
     """Produce a posterior MC sample of a proxy, from the MC output of either Plum or Bacon
-       where the output is a properly formatted `.out` file.
-       folder -- Folder for all core output files.  Defaults to "Cores".
+       where the output is a properly formatted `.out` file. 
        core -- Core handle, e.g. "LL14", associated with the set of `_settings.txt`,
+       folder -- Folder for all core output files.  Defaults to "Cores".
        `_proxy.txt`, and `.out` files of interest.  These files should be located within
        the folder identified using the parameter `folder`.
        p_list -- An array of integers identifying the columns within the `core_proxy.txt` file
@@ -34,6 +34,9 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
        y_by -- The date interval along which estimates will be interpolated, in years.
        returns a `dict` object with three elements: `grid`, the age grid,
                  and an MC sample for each proxy analyzed in `proxy`.
+       saveFile -- string of the filename for dict object.
+       showPlot -- prints plot object associated with proxy dict.
+       savePlot -- string of filename in which plots will be stored. showPlot must be True.
     """
     
     ### Read the first three lines of settings
@@ -72,7 +75,6 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
         print("Proxies: ", proxy_names, "\n")
         return None
     
-    k_proxy = len(p_list)
     ### age grid for age-depth models
     depths = arange( d_min, d_max+d_by, step=d_by)
     
@@ -100,11 +102,11 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
     for ax_n,p in enumerate(p_list):
         ### Interpolate the proxy
         inter_p = interp1d( proxy[:,0], proxy[:,p])
-        print("\nProxy (%s)" % (proxy_names[p]))
+        #print("\nProxy (%s)" % (proxy_names[p]))
         ### Itearete through the calendar ages
         for i,g in enumerate(CalA):
             ### For each year, iterate through all the age-depth models
-            print(g, end=' ')
+            #print(g, end=' ')
             for t in range(T):
                 ### Here we find the inverse d
                 tmp = where(solns[t,:] < g)[0]
@@ -125,7 +127,7 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
 
     for j in range(len(p_list)):
         rt['proxy'][proxy_names[p_list[j]]] = proxyResult[j]
-    
+        
     if saveFile is not None:
         try:
             with open(saveFile, 'w') as outfile:
@@ -136,7 +138,7 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
     
     return rt
 
-def PlotProxyUQ(rt):
+def PlotProxyUQ( rt, savePlot=None):
     """Make a general plot of the results produce by ProxyUQ"""
     
     ### Plot the age-depth models with quantiles
@@ -156,8 +158,19 @@ def PlotProxyUQ(rt):
     
     fig.tight_layout()
     fig_p.tight_layout()
-    return rt
+    if savePlot is not None:
+        try:
+            fig.tight_layout()
+            filename = savePlot+".png"
+            fig.savefig(filename)
+            fig_p.tight_layout()
+            filename = savePlot+"_p.png"
+            fig_p.savefig(filename)
+        except Exception as ex:
+            print(ex)
+            return None
 
+    return rt
 
 if __name__ == "__main__":
     ### Read the files and provide general info    aa=ProxyUQ( "HP1C/HP1C", p_list=[1], y_by=1)
@@ -166,7 +179,7 @@ if __name__ == "__main__":
     ### Do the calculations
     rt = ProxyUQ( core = "AtmosphericRivers/LL14", folder = "Cores", p_list=[1], saveFile="myjson.json")
     ### Basic plotting
-    PlotProxyUQ(rt)
+    PlotProxyUQ( rt, savePlot="Cores/AtmosphericRivers/proxy")
     
     """
     ### Example:
