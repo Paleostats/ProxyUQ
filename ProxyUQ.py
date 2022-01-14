@@ -90,14 +90,10 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
     ### Sample size, T rows, and CalA.size number of ages.
     solns_p = zeros((T,CalA.size))
     
-    ### Plot the age-depth models with quantiles
-    fig, ax = subplots( nrows=k_proxy+1, ncols=1, sharex=True) #, sharey=True)
-    PlotSolnsMC( depths, solns, ax=ax[0]) #Default quantiles 0.1,0.25,0.5,0.75,0.9
-    ax[-1].set_xlabel("Depth (cm)")
-    ax[0].set_ylabel("Age (y BP)")
-    fig_p, ax_p = subplots( nrows=k_proxy, ncols=1, sharex=True, squeeze=False)
-    ax_p[-1,0].set_xlabel("Age (y BP)")
+    ### rt is a dictionary to save results to return
     rt = {'dates': CalA}
+    rt['solns'] = solns # save the age-depth MC simulations
+    rt['depths'] = depths
     proxyResult = []
     
     ### Iterate through the proxy list
@@ -123,11 +119,6 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
                 else:
                     solns_p[t,i] = None
         print('\n')
-        ax[ax_n+1].plot( proxy[:,0], proxy[:,p], '-')
-        ax[ax_n+1].set_ylabel("Proxy (%s)" % (proxy_names[p]))
-        ### Plot the proxy ate cal age with quentiles
-        PlotSolnsMC( CalA, solns_p, ax=ax_p[ax_n,0])
-        ax_p[ax_n,0].set_ylabel("Proxy (%s)" % (proxy_names[p]))
         proxyResult += [solns_p.copy()]
     
     rt['proxy'] = {}
@@ -143,26 +134,49 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
             print(ex)
             return None
     
+    return rt
+
+def PlotProxyUQ(rt):
+    """Make a general plot of the results produce by ProxyUQ"""
+    
+    ### Plot the age-depth models with quantiles
+    fig, ax = subplots()
+    PlotSolnsMC( rt['depths'], rt['solns'], ax=ax) #Default quantiles 0.1,0.25,0.5,0.75,0.9
+    ax.set_xlabel("Depth (cm)")
+    ax.set_ylabel("Age (y BP)")
+
+    k_proxy = len(rt['proxy'].keys()) # Number of proxies
+    fig_p, ax_p = subplots( nrows=k_proxy, ncols=1, sharex=True, squeeze=False)
+    ax_p[-1,0].set_xlabel("Age (y BP)")
+    
+    ### Iterate through the proxy list
+    for ax_n,key in enumerate(rt['proxy'].keys()):
+        PlotSolnsMC( rt['dates'], rt['proxy'][key], ax=ax_p[ax_n,0])
+        ax_p[ax_n,0].set_ylabel("Proxy (%s)" % (key))
+    
     fig.tight_layout()
     fig_p.tight_layout()
     return rt
 
 
 if __name__ == "__main__":
-       ### Read the files and provide general info    aa=ProxyUQ( "HP1C/HP1C", p_list=[1], y_by=1)
-#    ProxyUQ( "Auassat/Auassat", p_list=[])
-    
-    aa = ProxyUQ( core = "LL14", folder = "AtmosphericRivers", p_list=[1], saveFile="myjson.json")
+    ### Read the files and provide general info    aa=ProxyUQ( "HP1C/HP1C", p_list=[1], y_by=1)
+    ProxyUQ( core = "AtmosphericRivers/LL14", folder = "Cores", p_list=None)
+
+    ### Do the calculations
+    rt = ProxyUQ( core = "AtmosphericRivers/LL14", folder = "Cores", p_list=[1], saveFile="myjson.json")
+    ### Basic plotting
+    PlotProxyUQ(rt)
     
     """
     ### Example:
     ### Analyze proxies 2 and 3.  Note, start at 1, 0 is the depth column.
-    CalA, solns_AC, solns_CAR = ProxyUQ( "Auassat/Auassat", p_list=[2,3], y_by=10)
+    #rt = ProxyUQ( "Auassat/Auassat", folder = "Cores", p_list=[2,3], y_by=10)
     ### You can make the nice plot with:
-    PlotSolnsMC( CalA, solns_AC)
-    ### Or make a histogram at a particula age:
+    PlotSolnsMC( rt['dates'], rt['proxy']['CAR'])
+    ### Or make a histogram at a particular age:
     fig, ax = subplots()
-    ax.hist(solns_AC[25,:]) #Proxy at age CalA[25]
+    ax.hist(rt['proxy']['CAR'][25,:]) #Proxy at age CalA[25]
     ax.set_xlabel("Acc. Carbon")
-    ax.set_title("%.0f, y BP" % (CalA[25]))
+    ax.set_title("%.0f, y BP" % (rt['dates'][25]))
     """

@@ -64,7 +64,7 @@ def PlotFuncEvolveMC( f, x, sample, q=[0.10,0.25], ax=None, fill=True, color='bl
     return ax, quan
 
 
-def PlotSolnsMC( x, solns, q=[0.10,0.25], ax=None, fill=True, color='blue', med_col='red'):
+def PlotSolnsMC( x, solns, q=[0.10,0.25], ax=None, fill=True, color='blue', med_col='red', label=""):
     """Plot evolution of quantiles q of $f_\theta(x)$
         for every $\theta$ in MC sample.
         q: quantiles below 0.5, these will be repeated with 1-q to make quantiles ranges.
@@ -104,7 +104,7 @@ def PlotSolnsMC( x, solns, q=[0.10,0.25], ax=None, fill=True, color='blue', med_
         for i in range(n):
             ax.plot( x, quan[i,:], '--', color=color, linewidth=0.5)
     ###Plot the median
-    ax.plot( x, quan[k,:], '-', color=med_col, linewidth=1.5)
+    ax.plot( x, quan[k,:], '-', color=med_col, linewidth=1.5, label=label)
     
     return ax, quan
 
