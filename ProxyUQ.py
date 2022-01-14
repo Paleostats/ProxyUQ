@@ -21,11 +21,11 @@ class NumpyEncoder(json.JSONEncoder):
                 return obj.tolist()
             return json.JSONEncoder.default(self, obj)
 
-def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
+def ProxyUQ(core, folder="Cores", p_list=None, y_by=10, saveFile = None, showPlot = False, savePlot = None):
     """Produce a posterior MC sample of a proxy, from the MC output of either Plum or Bacon
-       where the output is a properly formatted `.out` file.
-       folder -- Folder for all core output files.  Defaults to "Cores".
+       where the output is a properly formatted `.out` file. 
        core -- Core handle, e.g. "LL14", associated with the set of `_settings.txt`,
+       folder -- Folder for all core output files.  Defaults to "Cores".
        `_proxy.txt`, and `.out` files of interest.  These files should be located within
        the folder identified using the parameter `folder`.
        p_list -- An array of integers identifying the columns within the `core_proxy.txt` file
@@ -34,6 +34,9 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
        y_by -- The date interval along which estimates will be interpolated, in years.
        returns a `dict` object with three elements: `grid`, the age grid,
                  and an MC sample for each proxy analyzed in `proxy`.
+       saveFile -- string of the filename for dict object.
+       showPlot -- prints plot object associated with proxy dict.
+       savePlot -- string of filename in which plots will be stored. showPlot must be True.
     """
     
     ### Read the first three lines of settings
@@ -91,12 +94,13 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
     solns_p = zeros((T,CalA.size))
     
     ### Plot the age-depth models with quantiles
-    fig, ax = subplots( nrows=k_proxy+1, ncols=1, sharex=True) #, sharey=True)
-    PlotSolnsMC( depths, solns, ax=ax[0]) #Default quantiles 0.1,0.25,0.5,0.75,0.9
-    ax[-1].set_xlabel("Depth (cm)")
-    ax[0].set_ylabel("Age (y BP)")
-    fig_p, ax_p = subplots( nrows=k_proxy, ncols=1, sharex=True, squeeze=False)
-    ax_p[-1,0].set_xlabel("Age (y BP)")
+    if showPlot == True:
+        fig, ax = subplots( nrows=k_proxy+1, ncols=1, sharex=True) #, sharey=True)
+        PlotSolnsMC( depths, solns, ax=ax[0]) #Default quantiles 0.1,0.25,0.5,0.75,0.9
+        ax[-1].set_xlabel("Depth (cm)")
+        ax[0].set_ylabel("Age (y BP)")
+        fig_p, ax_p = subplots( nrows=k_proxy, ncols=1, sharex=True, squeeze=False)
+        ax_p[-1,0].set_xlabel("Age (y BP)")
     rt = {'dates': CalA}
     proxyResult = []
     
@@ -104,11 +108,11 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
     for ax_n,p in enumerate(p_list):
         ### Interpolate the proxy
         inter_p = interp1d( proxy[:,0], proxy[:,p])
-        print("\nProxy (%s)" % (proxy_names[p]))
+        #print("\nProxy (%s)" % (proxy_names[p]))
         ### Itearete through the calendar ages
         for i,g in enumerate(CalA):
             ### For each year, iterate through all the age-depth models
-            print(g, end=' ')
+            #print(g, end=' ')
             for t in range(T):
                 ### Here we find the inverse d
                 tmp = where(solns[t,:] < g)[0]
@@ -122,19 +126,21 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
                     solns_p[t,i] = inter_p(d) #add error here for proxies with error!
                 else:
                     solns_p[t,i] = None
-        print('\n')
-        ax[ax_n+1].plot( proxy[:,0], proxy[:,p], '-')
-        ax[ax_n+1].set_ylabel("Proxy (%s)" % (proxy_names[p]))
-        ### Plot the proxy ate cal age with quentiles
-        PlotSolnsMC( CalA, solns_p, ax=ax_p[ax_n,0])
-        ax_p[ax_n,0].set_ylabel("Proxy (%s)" % (proxy_names[p]))
+        #print('\n')
+        if showPlot == True:
+            ax[ax_n+1].plot( proxy[:,0], proxy[:,p], '-')
+            ax[ax_n+1].set_ylabel("Proxy (%s)" % (proxy_names[p]))
+            ### Plot the proxy ate cal age with quentiles       
+            PlotSolnsMC( CalA, solns_p, ax=ax_p[ax_n,0])
+            ax_p[ax_n,0].set_ylabel("Proxy (%s)" % (proxy_names[p]))
+        
         proxyResult += [solns_p.copy()]
     
     rt['proxy'] = {}
 
     for j in range(len(p_list)):
         rt['proxy'][proxy_names[p_list[j]]] = proxyResult[j]
-    
+        
     if saveFile is not None:
         try:
             with open(saveFile, 'w') as outfile:
@@ -142,11 +148,23 @@ def ProxyUQ(core, p_list=None, y_by=10, folder="Cores", saveFile = None):
         except Exception as ex:
             print(ex)
             return None
-    
-    fig.tight_layout()
-    fig_p.tight_layout()
-    return rt
 
+    if savePlot is not None and showPlot == True:
+        try:
+            fig.tight_layout()
+            filename = savePlot+".png"
+            fig.savefig(filename)
+            fig_p.tight_layout()
+            filename = savePlot+"_p.png"
+            fig_p.savefig(filename)
+        except Exception as ex:
+            print(ex)
+            return None
+
+    elif savePlot is not None and showPlot == False:
+        print("showPlot must be True")
+
+    return rt
 
 if __name__ == "__main__":
        ### Read the files and provide general info    aa=ProxyUQ( "HP1C/HP1C", p_list=[1], y_by=1)
